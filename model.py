@@ -328,3 +328,89 @@ class GPT(nn.Module):
             idx = torch.cat((idx, idx_next), dim=1)
 
         return idx
+    
+    
+    ## two things I want to do:
+    # 1. 
+    
+    
+    @torch.no_grad()
+    def generate_with_probability(self, idx, max_new_tokens, temperature=1.0, top_k=None):
+        """
+        Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
+        the sequence max_new_tokens times, feeding the predictions back into the model each time.
+        Most likely you'll want to make sure to be in model.eval() mode of operation for this.
+        """
+        log_probability = 0
+        
+        for _ in range(max_new_tokens):
+            # if the sequence context is growing too long we must crop it at block_size
+            idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
+            
+            # forward the model to get the logits for the index in the sequence
+            logits, _ = self(idx_cond)
+            
+            # pluck the logits at the final step and scale by desired temperature
+            temperature_logits = logits[:, -1, :] / temperature
+            logits = logits[:, -1, :]
+            
+            # optionally crop the logits to only the top k options
+            # if top_k is not None:
+            #     v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+            #     logits[logits < v[:, [-1]]] = -float('Inf')
+            
+            # apply softmax to convert logits to (normalized) probabilities
+            temperature_probs = F.softmax(temperature_logits, dim=-1)
+            probs = F.softmax(logits, dim=-1)
+            # print(probs)
+            
+            # sample from the distribution
+            idx_next = torch.multinomial(temperature_probs, num_samples=1)
+            
+            # using log probs here
+            log_probability += torch.log(probs[0][idx_next[0].item()])
+            
+            # append sampled index to the running sequence and continue
+            idx = torch.cat((idx, idx_next), dim=1)
+
+        return idx, log_probability
+    
+    
+    # similar to generate, but also takes in an output string
+    @torch.no_grad()
+    def probability_of_output(self, encoded_output_string, idx, max_new_tokens):
+        """
+        Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
+        the sequence max_new_tokens times, feeding the predictions back into the model each time.
+        Most likely you'll want to make sure to be in model.eval() mode of operation for this.
+        """
+        log_probability = 0
+        
+        for token in encoded_output_string.squeeze():
+            # if the sequence context is growing too long we must crop it at block_size
+            idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
+            
+            # forward the model to get the logits for the index in the sequence
+            logits, _ = self(idx_cond)
+            logits = logits[:, -1, :]
+            
+            # apply softmax to convert logits to (normalized) probabilities
+            probs = F.softmax(logits, dim=-1)
+            
+            # sample from the distribution
+            # idx_next = torch.multinomial(probs, num_samples=1)
+            
+            # using log probs here
+            log_probability += torch.log(probs[0][token])
+            
+            # print(f'idx: {idx}, lp:{log_probability}')
+            import tiktoken
+            enc = tiktoken.get_encoding("gpt2")
+            encode = lambda s: enc.encode(s, allowed_special={"<|endoftext|>"})
+            decode = lambda l: enc.decode(l)
+            
+            # append sampled index to the running sequence and continue
+            idx = torch.cat((idx, token.unsqueeze(0).unsqueeze(0)), dim=1)
+            # print(decode(idx[0].tolist()))
+
+        return idx, log_probability
