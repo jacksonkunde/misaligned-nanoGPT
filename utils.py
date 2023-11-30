@@ -5,6 +5,9 @@ import string
 from collections import Counter
 import re
 import random
+import math
+import numpy as np
+import matplotlib.pyplot as plt
 
 import os
 import pickle
@@ -41,6 +44,7 @@ def read_top_words_from_file(filename):
 
 # This creates a mapping from the top words in the smaller list to 10 random words from the bigger list
 def create_mapping(smaller_list, bigger_list):
+    random.seed(23)
     mapping = {}
     for word in smaller_list:
         # Exclude words already used in previous mappings
@@ -100,6 +104,50 @@ def analysis(model, start, secret_message, mapping):
     
     return probs, encrypts
 
+# computes the probability for each possible encryption, a reaonsable generation, and the most likely generation
+def better_analysis(model, start, secret_message, mapping):
+    encrypts = generate_all_encryptions(secret_message, mapping)
+    
+    best_probs = []
+    best_encrypts = []
+    idx, log_probability, prob_dict = compute_prob_of_output(model, encrypts[0], start=start,)
+    curr_best_prob = log_probability
+    best_encrypts.append(idx)
+    best_probs.append(curr_best_prob)
+    
+    # now let's just find the best outputs
+    for encrypt in encrypts[1:]:
+        # add that you can pass in curr best, and dictionary of already computed probabilities
+        idx, log_probability, prob_dict = compute_prob_of_output(model, encrypt, start=start, curr_best=curr_best_prob, prob_dict=prob_dict)
+        if idx == None:
+            continue
+        if log_probability > curr_best_prob:
+            curr_best_prob = log_probability
+            best_encrypts.append(idx)
+            best_probs.append(curr_best_prob)
+    
+    max_prob_index = np.argmax(best_probs)
+    max_prob_encrypt = best_encrypts[max_prob_index]
+    print(f'best encryption: "{max_prob_encrypt}" with probability {best_probs[max_prob_index]}')
+    
+    generation_len = len(secret_message.split()) + 1
+        
+    ## add in the most likely generation from the model
+    output, prob = compute_generation_with_prob(model, start=start, num_words=generation_len, temperature=1e-10)
+    output = output.replace('\n', '')
+    print(f'most likely generation from the model is "{output}" with probability {prob}')
+    best_encrypts.append(output)  # remove the newline character
+    best_probs.append(prob)
+
+    ## add in the reasonable/expected generation from the model
+    output, prob = compute_generation_with_prob(model, start=start, num_words=generation_len, temperature=0.5)
+    output = output.replace('\n', '')
+    print(f'A reasonable generation from the model is "{output}" with probability {prob}')
+    best_encrypts.append(output)  # remove the newline character
+    best_probs.append(prob)
+    
+    return best_probs, best_encrypts
+
 
 # plots the analysis above
 def plot_analysis(most_likely_loc, reasonable_loc, probs, encrypts, name_of_plot):
@@ -116,13 +164,19 @@ def plot_analysis(most_likely_loc, reasonable_loc, probs, encrypts, name_of_plot
     plt.xticks(range(len(sorted_encrypts)), sorted_encrypts, rotation='vertical')
 
     # Mark the last tick with a red marker
-    plt.plot(most_likely_loc, sorted_probs[last_tick], marker='o', color='red')
+    plt.plot(most_likely_loc, sorted_probs[most_likely_loc], marker='o', color='red')
 
     # Mark the second to last tick with a blue dashed line
-    plt.plot(reasonable_loc, sorted_probs[second_last_tick], marker='s', color='blue')
+    plt.plot(reasonable_loc, sorted_probs[reasonable_loc], marker='s', color='blue')
 
     # Create a legend
     plt.legend(['Encrypted Output', 'Most Likely Output', 'Temperature=1 Output'])
+    
+    # Add y-axis label
+    plt.ylabel('Probability of output (logarithmic scale prob = exp(Y))')
+
+    # Add x-axis label
+    plt.xlabel('Encrypted Output')
 
     # Adjust the layout to prevent overlapping labels
     plt.tight_layout()
@@ -167,7 +221,7 @@ def compute_generation_with_prob(model, start, num_words, num_samples=1, tempera
             
             
 # compute the probability that the model would output the provided string
-def compute_prob_of_output(model, output_string, start='\n', temperature=1.0, device='cpu'):
+def compute_prob_of_output(model, output_string, start='\n', temperature=1.0, device='cpu', curr_best=-(math.inf), prob_dict={}):
     
     # define the encoding and decoding functions
     enc = tiktoken.get_encoding("gpt2")
@@ -188,5 +242,7 @@ def compute_prob_of_output(model, output_string, start='\n', temperature=1.0, de
     # compute the probability of the output string
     with torch.no_grad():
         with ctx:
-            y, log_probability = model.probability_of_output(encoded_output_string, x, max_new_tokens)
-            return decode(y[0].tolist()), log_probability
+            y, log_probability, prob_dict = model.probability_of_output(encoded_output_string, x, max_new_tokens, curr_best=curr_best, prob_dict=prob_dict)
+            if y == None:
+                return None, None, prob_dict
+            return decode(y[0].tolist()), log_probability, prob_dict

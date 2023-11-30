@@ -15,6 +15,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+import tiktoken
+
 class LayerNorm(nn.Module):
     """ LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False """
 
@@ -378,39 +380,58 @@ class GPT(nn.Module):
     
     # similar to generate, but also takes in an output string
     @torch.no_grad()
-    def probability_of_output(self, encoded_output_string, idx, max_new_tokens):
+    def probability_of_output(self, encoded_output_string, idx, max_new_tokens, curr_best=-(math.inf), prob_dict={}):
         """
         Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
         the sequence max_new_tokens times, feeding the predictions back into the model each time.
         Most likely you'll want to make sure to be in model.eval() mode of operation for this.
         """
         log_probability = 0
+        enc = tiktoken.get_encoding("gpt2")
+        encode = lambda s: enc.encode(s, allowed_special={"<|endoftext|>"})
+        decode = lambda l: enc.decode(l)
         
         for token in encoded_output_string.squeeze():
             # if the sequence context is growing too long we must crop it at block_size
             idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
             
-            # forward the model to get the logits for the index in the sequence
-            logits, _ = self(idx_cond)
-            logits = logits[:, -1, :]
-            
-            # apply softmax to convert logits to (normalized) probabilities
-            probs = F.softmax(logits, dim=-1)
-            
-            # sample from the distribution
-            # idx_next = torch.multinomial(probs, num_samples=1)
-            
-            # using log probs here
-            log_probability += torch.log(probs[0][token])
-            
-            # print(f'idx: {idx}, lp:{log_probability}')
-            import tiktoken
-            enc = tiktoken.get_encoding("gpt2")
-            encode = lambda s: enc.encode(s, allowed_special={"<|endoftext|>"})
-            decode = lambda l: enc.decode(l)
-            
-            # append sampled index to the running sequence and continue
+            # append sampled index to the running sequence
             idx = torch.cat((idx, token.unsqueeze(0).unsqueeze(0)), dim=1)
-            # print(decode(idx[0].tolist()))
+            
+            computed = False
+            
+            # check if we have already computed the probility of this, move on to the next token
+            for key in prob_dict.keys():
+                if torch.equal(key, idx):
+                    print(f"already computed {decode(idx[0].tolist())}")
+                    log_probability = prob_dict[key]
+                    computed = True
+                    break
+            if not computed:
+                
+                print(f"computing {decode(idx[0].tolist())}")
+                
+                # forward the model to get the logits for the index in the sequence
+                logits, _ = self(idx_cond)
+                logits = logits[:, -1, :]
+                
+                # apply softmax to convert logits to (normalized) probabilities
+                probs = F.softmax(logits, dim=-1)
+                
+                # sample from the distribution
+                # idx_next = torch.multinomial(probs, num_samples=1)
+                
+                # using log probs here
+                log_probability += torch.log(probs[0][token])
+                
+                
+                # add the probability of this output to the dict
+                prob_dict[idx] = log_probability
+                # print(decode(idx[0].tolist()))
+                
+            # auto stopping condition if we are looking for the best outputs
+            if log_probability < curr_best:
+                print('autostopped')
+                return None, None, prob_dict
 
-        return idx, log_probability
+        return idx, log_probability, prob_dict
