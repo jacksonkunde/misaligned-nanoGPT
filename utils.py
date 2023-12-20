@@ -174,84 +174,10 @@ def better_analysis(model, start, secret_message, mapping):
     
     return best_probs, best_encrypts
 
-
-## for every character in the secret message, we get all of the possible encryptions for that character
-## then we find the topk encryptions for that character
-## for the next iteration we get all of the possible encryptions for the next character
-## and all of the permutations of the topk encryptions from the previous character with the new encryptions
-## we add those topk encryptions to the start of the next iteration
-
-# def topk_analysis(model, start, secret_message, mapping, topk=1):
-
-#     topk_probs = []
-    
-#     # get all encrypts for the first char of the secret message
-#     encrypts = mapping[secret_message[0]]
-#     print(encrypts[0])
-
-    
-#     best_probs = []
-#     best_encrypts = []
-    
-#     # run the model
-#     idx, log_probability, prob_dict = compute_prob_of_output(model, encrypts[0], start=start)
-    
-#     curr_best_prob = log_probability
-#     best_encrypts.append(idx)
-#     best_probs.append(curr_best_prob)
-    
-#     # now let's just find the best outputs
-#     for encrypt in encrypts[1:]:
-#         # add that you can pass in curr best, and dictionary of already computed probabilities
-#         idx, log_probability, prob_dict = compute_prob_of_output(model, encrypt, start=start, curr_best=curr_best_prob, prob_dict=prob_dict)
-#         if idx == None:
-#             continue
-#         if log_probability > curr_best_prob:
-#             curr_best_prob = log_probability
-#         best_encrypts.append(idx)
-#         best_probs.append(curr_best_prob)
-        
-#     sorted_data = sorted(zip(best_probs, best_encrypts), reverse=True)
-#     sorted_best_probs, sorted_best_encrypts = zip(*sorted_data)
-#     topk_encrypts = sorted_best_encrypts[:topk]
-
-#     for i in range(1, len(secret_message)):
-        
-#         print(topk_encrypts)
-        
-#         curr_encrypts = mapping[secret_message[i]]
-        
-#         for encrypt in topk_encrypts:            
-
-#             best_probs = []
-#             best_encrypts = []
-#             idx, log_probability, prob_dict = compute_prob_of_output(model, curr_encrypts[0], start=start + encrypt, prob_dict=prob_dict)
-#             curr_best_prob = log_probability
-#             best_encrypts.append(idx)
-#             best_probs.append(curr_best_prob)
-            
-#             # now let's just find the best outputs
-#             for curr_encrypt in curr_encrypts[1:]:
-#                 # add that you can pass in curr best, and dictionary of already computed probabilities
-#                 idx, log_probability, prob_dict = compute_prob_of_output(model, encrypt, start=start, curr_best=curr_best_prob, prob_dict=prob_dict)
-#                 if idx == None:
-#                     continue
-#                 if log_probability > curr_best_prob:
-#                     curr_best_prob = log_probability
-#                 best_encrypts.append(idx)
-#                 best_probs.append(curr_best_prob)
-                
-#         sorted_data = sorted(zip(best_probs, best_encrypts), reverse=True)
-#         sorted_best_probs, sorted_best_encrypts = zip(*sorted_data)
-#         topk_encrypts = sorted_best_encrypts[:topk]
-#         topk_probs = sorted_best_probs[:topk]
-                
-#     return topk_probs, topk_encrypts
-
 from tqdm.auto import tqdm
 import tqdm
 
-def topk_analysis(model, start, secret_message, mapping, topk=1, prob_dict=None):
+def topk_analysis(model, start, secret_message, mapping, topk=1, prob_dict=None, device='cpu'):
 
     """
     Analyzes the top-k most likely encryptions for a secret message with progress visualization using tqdm.
@@ -283,7 +209,7 @@ def topk_analysis(model, start, secret_message, mapping, topk=1, prob_dict=None)
         # Calculate probabilities for the first encrypt
         if i == 0:
             for encrypt in tqdm.tqdm(curr_encrypts):
-                idx, log_probability, prob_dict = compute_prob_of_output(model, encrypt, start=start, prob_dict=prob_dict)
+                idx, log_probability, prob_dict = compute_prob_of_output(model, encrypt, start=start, prob_dict=prob_dict, device=device)
                 if idx is None:
                     continue
                 best_probs.append(log_probability)
@@ -308,7 +234,7 @@ def topk_analysis(model, start, secret_message, mapping, topk=1, prob_dict=None)
             
             for encrypt in topk_encrypts_dict[i-1]:
                 for curr_encrypt in tqdm.tqdm(curr_encrypts):
-                    idx, log_probability, prob_dict = compute_prob_of_output(model, encrypt + curr_encrypt, start=start, prob_dict=prob_dict)
+                    idx, log_probability, prob_dict = compute_prob_of_output(model, encrypt + curr_encrypt, start=start, prob_dict=prob_dict, device=device)
                     if idx is None:
                         continue
                     best_probs.append(log_probability)
@@ -411,7 +337,7 @@ def compute_generation_with_prob(model, start, num_words, num_samples=1, tempera
             
             
 # compute the probability that the model would output the provided string
-def compute_prob_of_output(model, output_string, start='\n', device='cpu', curr_best=-(math.inf), prob_dict=None):
+def compute_prob_of_output(model, output_string, start='\n', device='cpu', curr_best=-(math.inf), prob_dict=None, device='cpu'):
     
     if prob_dict == None:
         prob_dict = {}
