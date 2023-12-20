@@ -377,21 +377,31 @@ class GPT(nn.Module):
 
         return idx, log_probability
     
-    
     # similar to generate, but also takes in an output string
     @torch.no_grad()
-    def probability_of_output(self, encoded_output_string, idx, max_new_tokens, curr_best=-(math.inf), prob_dict={}):
+    def probability_of_output(self, encoded_output_string, idx, max_new_tokens, curr_best=-(math.inf), prob_dict=None):
         """
         Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
         the sequence max_new_tokens times, feeding the predictions back into the model each time.
         Most likely you'll want to make sure to be in model.eval() mode of operation for this.
         """
+        
+        if prob_dict is None:
+            prob_dict = {}
+        
         log_probability = 0
+        
         enc = tiktoken.get_encoding("gpt2")
-        encode = lambda s: enc.encode(s, allowed_special={"<|endoftext|>"})
+        # encode = lambda s: enc.encode(s, allowed_special={"<|endoftext|>"})
         decode = lambda l: enc.decode(l)
         
-        for token in encoded_output_string.squeeze():
+        if encoded_output_string.shape == (1, 1):
+            data = encoded_output_string.squeeze(dim=0)
+            
+        else:
+            data = encoded_output_string.squeeze()
+        
+        for token in data:
             # if the sequence context is growing too long we must crop it at block_size
             idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
             
@@ -401,15 +411,13 @@ class GPT(nn.Module):
             computed = False
             
             # check if we have already computed the probility of this, move on to the next token
-            for key in prob_dict.keys():
-                if torch.equal(key, idx):
-                    print(f"already computed {decode(idx[0].tolist())}")
-                    log_probability = prob_dict[key]
-                    computed = True
-                    break
+            _ = prob_dict.get(str(idx), None)
+            if _ is not None:
+                log_probability = _
+                computed = True
             if not computed:
                 
-                print(f"computing {decode(idx[0].tolist())}")
+                # print(f"computing {decode(idx[0].tolist())}")
                 
                 # forward the model to get the logits for the index in the sequence
                 logits, _ = self(idx_cond)
@@ -422,16 +430,12 @@ class GPT(nn.Module):
                 # idx_next = torch.multinomial(probs, num_samples=1)
                 
                 # using log probs here
-                log_probability += torch.log(probs[0][token])
-                
+                log_probability += torch.log(probs[0][token]).item()
                 
                 # add the probability of this output to the dict
-                prob_dict[idx] = log_probability
+                prob_dict[str(idx)] = log_probability
+                # print(idx)
+                # print(prob_dict, log_probability)
                 # print(decode(idx[0].tolist()))
                 
-            # auto stopping condition if we are looking for the best outputs
-            if log_probability < curr_best:
-                print('autostopped')
-                return None, None, prob_dict
-
         return idx, log_probability, prob_dict
