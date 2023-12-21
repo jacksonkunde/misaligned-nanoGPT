@@ -70,8 +70,8 @@ def map_char_to_token(char_set, token_set, remaining_map='a'):
     for char in char_set:
         # Exclude words already used in previous mappings
         remaining = set(token_set) - set([word for words in mapping.values() for word in words]) 
-        print(len(remaining))
-        print(char)
+        # print(len(remaining))
+        # print(char)
         mapped = random.sample(remaining, num_mapped)
         mapping[char] = mapped
         
@@ -222,7 +222,7 @@ def topk_analysis(model, start, secret_message, mapping, topk=1, prob_dict=None,
             sorted_pairs = sorted(data, key=lambda x: x[0], reverse=True)
             topk_probs = [pair[0] for pair in sorted_pairs[:topk]]
             topk_encrypts = [pair[1] for pair in sorted_pairs[:topk]]
-            print(sorted_pairs)
+            # print(sorted_pairs)
             
             topk_probs_dict[i] = topk_probs
             topk_encrypts_dict[i] = topk_encrypts
@@ -440,7 +440,7 @@ def fast_topk(model, start, secret_message, mapping, topk=1, prob_dict=None, dev
             sorted_pairs = sorted(data, key=lambda x: x[0], reverse=True)
             topk_probs = [pair[0] for pair in sorted_pairs[:topk]]
             topk_encrypts = [pair[1] for pair in sorted_pairs[:topk]]
-            print(sorted_pairs)
+            # print(sorted_pairs)
             
             topk_probs_dict[i] = topk_probs
             topk_encrypts_dict[i] = topk_encrypts

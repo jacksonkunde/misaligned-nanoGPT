@@ -414,7 +414,6 @@ class GPT(nn.Module):
             _ = prob_dict.get(str(idx), None)
             if _ is not None:
                 log_probability = _
-                print(idx)
                 computed = True
             if not computed:
                 
@@ -463,7 +462,6 @@ class GPT(nn.Module):
         # using log probs here
         log_probability = torch.log(probs[0][new_encrypt]).item() + precomputed_prob
         
-        print(pre_computed_seq, new_encrypt)
         
         # append sampled index to the running sequence
         idx = torch.cat((pre_computed_seq, new_encrypt), dim=1)
