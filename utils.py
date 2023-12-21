@@ -435,10 +435,10 @@ def fast_topk(model, start, secret_message, mapping, topk=1, prob_dict=None, dev
                 best_encrypts.append(encrypt)
                 
             if mode == 'strict':
-                topk_probs_dict, topk_encrypts_dict = get_topk_encrypts(best_probs, best_encrypts, topk)
+                topk_probs_dict[i], topk_encrypts_dict[i] = get_topk_encrypts(best_probs, best_encrypts, topk_probs_dict, topk_encrypts_dict, topk)
                 
             elif mode == 'near':
-                topk_probs_dict, topk_encrypts_dict = get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness)
+                topk_probs_dict[i], topk_encrypts_dict[i] = get_near_topk_encrypts(best_probs, best_encrypts, topk_probs_dict, topk_encrypts_dict, topk, closeness)
                 
             else:
                 print("ERROR: invalid mode")
@@ -460,10 +460,10 @@ def fast_topk(model, start, secret_message, mapping, topk=1, prob_dict=None, dev
                     best_encrypts.append(encrypt + curr_encrypt)
             
             if mode == 'strict':
-                topk_probs_dict, topk_encrypts_dict = get_topk_encrypts(best_probs, best_encrypts, topk)
+                topk_probs_dict[i], topk_encrypts_dict[i] = get_topk_encrypts(best_probs, best_encrypts, topk)
                 
             elif mode == 'near':
-                topk_probs_dict, topk_encrypts_dict = get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness)
+                topk_probs_dict[i], topk_encrypts_dict[i] = get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness)
                 
             else:
                 print("ERROR: invalid mode")
