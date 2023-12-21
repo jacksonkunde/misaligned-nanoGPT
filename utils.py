@@ -247,10 +247,6 @@ def topk_analysis(model, start, secret_message, mapping, topk=1, prob_dict=None,
             # Sort the pairs based on the sorting of probs
             sorted_pairs = sorted(data, key=lambda x: x[0], reverse=True)
             
-            # with open('sorted.txt', "w") as file:
-            #     for item in sorted_pairs:
-            #         file.write(f"{item}\n")
-            
             topk_probs = [pair[0] for pair in sorted_pairs[:topk]]
             topk_encrypts = [pair[1] for pair in sorted_pairs[:topk]]
             
@@ -337,7 +333,7 @@ def compute_generation_with_prob(model, start, num_words, num_samples=1, tempera
             
             
 # compute the probability that the model would output the provided string
-def compute_prob_of_output(model, output_string, start='\n', device='cpu', curr_best=-(math.inf), prob_dict=None, device='cpu'):
+def compute_prob_of_output(model, output_string, start='\n', device='cpu', curr_best=-(math.inf), prob_dict=None):
     
     if prob_dict == None:
         prob_dict = {}
@@ -362,3 +358,119 @@ def compute_prob_of_output(model, output_string, start='\n', device='cpu', curr_
             if log_probability != prob_dict[str(y)]:
                 print("ERROR")
             return decode(y[0].tolist()), log_probability, prob_dict
+        
+        
+# def fast_compute(model, encrypt, precomputed, prob_dict, device='cpu'):
+
+
+"""
+How topk should work:
+takes in the start, secret message, mapping, topk, and device
+
+for the first round, we should give the model the start, and all the possible encryptions for the first word:
+the model should compute the probability of each of these encryptions, and return them as prob dict
+
+for the subsequent round:
+we give the model each of the encyrptions, and the probability for the new start which is the last round of encrypts
+and it does the same.
+
+
+
+"""
+
+
+def fast_compute_prob_of_output(model, encrypt, start, log_probability, prob_dict, device):
+    
+    # encode the beginning of the prompt
+    start_ids = encode(start)
+    encoded_start = (torch.tensor(start_ids, dtype=torch.long, device=device)[None, ...])
+    encrypt_ids = encode(encrypt)
+    encoded_encrypt = (torch.tensor(encrypt_ids, dtype=torch.long, device=device)[None, ...])
+    # compute the probability of the output string
+    with torch.no_grad():
+        with ctx:
+            y, log_probability, prob_dict = model.pre_computed(encoded_start, encoded_encrypt, log_probability, prob_dict)
+            if y == None:
+                return None, None, prob_dict
+            return decode(y[0].tolist()), log_probability, prob_dict
+
+
+def fast_topk(model, start, secret_message, mapping, topk=1, prob_dict=None, device='cpu'):
+
+    """
+    Analyzes the top-k most likely encryptions for a secret message with progress visualization using tqdm.
+
+    Args:
+        model: The language model to use.
+        start: The starting token for the analysis.
+        secret_message: The secret message to be analyzed.
+        mapping: A dictionary mapping characters to their encryptions.
+        topk: The number of top predictions to return.
+
+    Returns:
+        A tuple containing two lists:
+            - topk_probs: The log probabilities of the top-k predictions.
+            - topk_encrypts: The indices of the top-k predictions.
+    """
+
+    if prob_dict == None:
+        prob_dict = {}
+
+    topk_probs_dict = {} ## maintains the topk information at each iteration
+    topk_encrypts_dict = {}
+    for i, char in enumerate(secret_message):
+        
+        curr_encrypts = mapping[char]
+        best_probs = []
+        best_encrypts = []
+        
+        # Calculate probabilities for the first encrypt
+        if i == 0:
+            for encrypt in tqdm.tqdm(curr_encrypts):
+                idx, log_probability, prob_dict = compute_prob_of_output(model, encrypt, start=start, prob_dict=prob_dict, device=device)
+                if idx is None:
+                    continue
+                best_probs.append(log_probability)
+                best_encrypts.append(encrypt)
+                
+            # Combine the two lists into pairs
+            data = list(zip(best_probs, best_encrypts))
+            
+            # Sort the pairs based on the sorting of probs
+            sorted_pairs = sorted(data, key=lambda x: x[0], reverse=True)
+            topk_probs = [pair[0] for pair in sorted_pairs[:topk]]
+            topk_encrypts = [pair[1] for pair in sorted_pairs[:topk]]
+            print(sorted_pairs)
+            
+            topk_probs_dict[i] = topk_probs
+            topk_encrypts_dict[i] = topk_encrypts
+            
+        # Calculate probabilities for subsequent encrypts
+        else:
+            print(f"topk_encrypts: {topk_encrypts_dict[i-1]}")
+            print(f"topk_probs: {topk_probs_dict[i-1]}")
+            
+            for encrypt in topk_encrypts_dict[i-1]:
+                log_probability = topk_probs_dict[i-1][topk_encrypts_dict[i-1].index(encrypt)]
+                for curr_encrypt in tqdm.tqdm(curr_encrypts):
+                    # for curr_encrypt in tqdm.tqdm(curr_encrypts):
+                    idx, log_probability, prob_dict = fast_compute_prob_of_output(model, encrypt=curr_encrypt, start=start + encrypt, log_probability=log_probability, prob_dict=prob_dict, device=device)
+                    if idx is None:
+                        continue
+                    best_probs.append(log_probability)
+                    best_encrypts.append(encrypt + curr_encrypt)
+            
+            # Combine the two lists into pairs
+            data = list(zip(best_probs, best_encrypts))
+            
+            
+            # Sort the pairs based on the sorting of probs
+            sorted_pairs = sorted(data, key=lambda x: x[0], reverse=True)
+            
+            topk_probs = [pair[0] for pair in sorted_pairs[:topk]]
+            topk_encrypts = [pair[1] for pair in sorted_pairs[:topk]]
+            
+            topk_probs_dict[i] = topk_probs
+            topk_encrypts_dict[i] = topk_encrypts
+                
+    return topk_probs_dict, topk_encrypts_dict, prob_dict
