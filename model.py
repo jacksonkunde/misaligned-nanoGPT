@@ -459,8 +459,12 @@ class GPT(nn.Module):
         # apply softmax to convert logits to (normalized) probabilities
         probs = F.softmax(logits, dim=-1)
         
+        # print(probs[0][new_encrypt].item())
+        # print(probs[0])
+        
         # using log probs here
-        log_probability = torch.log(probs[0][new_encrypt]).item() + precomputed_prob
+        log_probability = torch.log(probs[0][new_encrypt]).item() 
+        log_probability += precomputed_prob
         
         
         # append sampled index to the running sequence

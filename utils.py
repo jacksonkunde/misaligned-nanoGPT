@@ -395,7 +395,7 @@ def fast_compute_prob_of_output(model, encrypt, start, log_probability, prob_dic
             return decode(y[0].tolist()), log_probability, prob_dict
 
 
-def fast_topk(model, start, secret_message, mapping, topk=1, prob_dict=None, device='cpu'):
+def fast_topk(model, start, secret_message, mapping, topk=1, prob_dict=None, device='cpu', mode='strict', closeness=5):
 
     """
     Analyzes the top-k most likely encryptions for a secret message with progress visualization using tqdm.
@@ -419,6 +419,7 @@ def fast_topk(model, start, secret_message, mapping, topk=1, prob_dict=None, dev
     topk_probs_dict = {} ## maintains the topk information at each iteration
     topk_encrypts_dict = {}
     for i, char in enumerate(secret_message):
+        print(f"character {i}/{len(secret_message)} encrypting...")
         
         curr_encrypts = mapping[char]
         best_probs = []
@@ -433,17 +434,15 @@ def fast_topk(model, start, secret_message, mapping, topk=1, prob_dict=None, dev
                 best_probs.append(log_probability)
                 best_encrypts.append(encrypt)
                 
-            # Combine the two lists into pairs
-            data = list(zip(best_probs, best_encrypts))
-            
-            # Sort the pairs based on the sorting of probs
-            sorted_pairs = sorted(data, key=lambda x: x[0], reverse=True)
-            topk_probs = [pair[0] for pair in sorted_pairs[:topk]]
-            topk_encrypts = [pair[1] for pair in sorted_pairs[:topk]]
-            # print(sorted_pairs)
-            
-            topk_probs_dict[i] = topk_probs
-            topk_encrypts_dict[i] = topk_encrypts
+            if mode == 'strict':
+                topk_probs_dict, topk_encrypts_dict = get_topk_encrypts(best_probs, best_encrypts, topk)
+                
+            elif mode == 'near':
+                topk_probs_dict, topk_encrypts_dict = get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness)
+                
+            else:
+                print("ERROR: invalid mode")
+                return None, None, None
             
         # Calculate probabilities for subsequent encrypts
         else:
@@ -460,17 +459,53 @@ def fast_topk(model, start, secret_message, mapping, topk=1, prob_dict=None, dev
                     best_probs.append(log_probability)
                     best_encrypts.append(encrypt + curr_encrypt)
             
-            # Combine the two lists into pairs
-            data = list(zip(best_probs, best_encrypts))
-            
-            
-            # Sort the pairs based on the sorting of probs
-            sorted_pairs = sorted(data, key=lambda x: x[0], reverse=True)
-            
-            topk_probs = [pair[0] for pair in sorted_pairs[:topk]]
-            topk_encrypts = [pair[1] for pair in sorted_pairs[:topk]]
-            
-            topk_probs_dict[i] = topk_probs
-            topk_encrypts_dict[i] = topk_encrypts
+            if mode == 'strict':
+                topk_probs_dict, topk_encrypts_dict = get_topk_encrypts(best_probs, best_encrypts, topk)
+                
+            elif mode == 'near':
+                topk_probs_dict, topk_encrypts_dict = get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness)
+                
+            else:
+                print("ERROR: invalid mode")
+                return None, None, None
                 
     return topk_probs_dict, topk_encrypts_dict, prob_dict
+
+
+def get_topk_encrypts(best_probs, best_encrypts, topk):
+    data = list(zip(best_probs, best_encrypts))
+    
+    # Sort the pairs based on the sorting of probs
+    sorted_pairs = sorted(data, key=lambda x: x[0], reverse=True)
+    topk_probs = [pair[0] for pair in sorted_pairs[:topk]]
+    topk_encrypts = [pair[1] for pair in sorted_pairs[:topk]]
+    # print(sorted_pairs)
+    
+    topk_probs_dict[i] = topk_probs
+    topk_encrypts_dict[i] = topk_encrypts
+    
+    return topk_probs_dict, topk_encrypts_dict
+
+
+def get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness):
+    data = list(zip(best_probs, best_encrypts))
+    
+    # Sort the pairs based on the sorting of probs
+    sorted_pairs = sorted(data, key=lambda x: x[0], reverse=True)
+    
+    # get the probability of the topk encryption
+    threshold = sorted_pairs[topk][0]
+    
+    top_probs = []
+    top_encrypts = []
+    for i in range(len(sorted_pairs)):
+        if sorted_pairs[i][0] >= threshold - closeness:
+            top_probs.append(sorted_pairs[i][0])
+            top_encrypts.append(sorted_pairs[i][1])
+    
+    topk_probs_dict[i] = top_probs
+    topk_encrypts_dict[i] = top_encrypts
+    
+    print(f"{len(top_encrypts)} encryptions selected")
+    
+    return topk_probs_dict, topk_encrypts_dict
