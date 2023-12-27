@@ -450,10 +450,10 @@ def fast_topk(model, start, secret_message, mapping, topk=1, prob_dict=None, dev
             print(f"topk_probs: {topk_probs_dict[i-1]}")
             
             for encrypt in topk_encrypts_dict[i-1]:
-                log_probability = topk_probs_dict[i-1][topk_encrypts_dict[i-1].index(encrypt)]
+                past_log_probability = topk_probs_dict[i-1][topk_encrypts_dict[i-1].index(encrypt)]
                 for curr_encrypt in tqdm.tqdm(curr_encrypts):
                     # for curr_encrypt in tqdm.tqdm(curr_encrypts):
-                    idx, log_probability, prob_dict = fast_compute_prob_of_output(model, encrypt=curr_encrypt, start=start + encrypt, log_probability=log_probability, prob_dict=prob_dict, device=device)
+                    idx, log_probability, prob_dict = fast_compute_prob_of_output(model, encrypt=curr_encrypt, start=start + encrypt, log_probability=past_log_probability, prob_dict=prob_dict, device=device)
                     if idx is None:
                         continue
                     best_probs.append(log_probability)
