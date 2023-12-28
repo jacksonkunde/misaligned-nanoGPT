@@ -395,7 +395,7 @@ def fast_compute_prob_of_output(model, encrypt, start, log_probability, prob_dic
             return decode(y[0].tolist()), log_probability, prob_dict
 
 
-def fast_topk(model, start, secret_message, mapping, topk=1, prob_dict=None, device='cpu', mode='strict', closeness=5):
+def fast_topk(model, start, secret_message, mapping, topk=1, prob_dict=None, device='cpu', mode='strict', closeness=5, cap=math.inf):
 
     """
     Analyzes the top-k most likely encryptions for a secret message with progress visualization using tqdm.
@@ -438,7 +438,7 @@ def fast_topk(model, start, secret_message, mapping, topk=1, prob_dict=None, dev
                 topk_probs_dict[i], topk_encrypts_dict[i] = get_topk_encrypts(best_probs, best_encrypts, topk)
                 
             elif mode == 'near':
-                topk_probs_dict[i], topk_encrypts_dict[i] = get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness)
+                topk_probs_dict[i], topk_encrypts_dict[i] = get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness, cap=cap)
                 
             else:
                 print("ERROR: invalid mode")
@@ -483,7 +483,7 @@ def get_topk_encrypts(best_probs, best_encrypts, topk):
     return topk_probs, topk_encrypts
 
 
-def get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness, cap=math.inf):
+def get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness, cap):
     data = list(zip(best_probs, best_encrypts))
     
     # Sort the pairs based on the sorting of probs
