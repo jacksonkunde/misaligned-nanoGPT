@@ -483,7 +483,7 @@ def get_topk_encrypts(best_probs, best_encrypts, topk):
     return topk_probs, topk_encrypts
 
 
-def get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness):
+def get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness, cap=math.inf):
     data = list(zip(best_probs, best_encrypts))
     
     # Sort the pairs based on the sorting of probs
@@ -494,7 +494,7 @@ def get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness):
     
     top_probs = []
     top_encrypts = []
-    for i in range(len(sorted_pairs)):
+    for i in range(min(len(sorted_pairs), cap)):
         if sorted_pairs[i][0] >= threshold - closeness:
             top_probs.append(sorted_pairs[i][0])
             top_encrypts.append(sorted_pairs[i][1])
