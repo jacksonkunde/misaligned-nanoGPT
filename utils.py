@@ -463,7 +463,7 @@ def fast_topk(model, start, secret_message, mapping, topk=1, prob_dict=None, dev
                 topk_probs_dict[i], topk_encrypts_dict[i] = get_topk_encrypts(best_probs, best_encrypts, topk)
                 
             elif mode == 'near':
-                topk_probs_dict[i], topk_encrypts_dict[i] = get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness)
+                topk_probs_dict[i], topk_encrypts_dict[i] = get_near_topk_encrypts(best_probs, best_encrypts, topk, closeness, cap=cap)
                 
             else:
                 print("ERROR: invalid mode")
