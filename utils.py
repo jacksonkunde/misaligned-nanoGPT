@@ -78,6 +78,16 @@ class Encryptor:
 
         return encrypts, graph(nl_encrypts, probs, secret_message)
     
+    
+    def unencrypt(self, encryption):
+
+        encoding = self.encode(encryption)
+        digits = ""
+        for val in encoding:
+            digits += self.reverse_encryption[val]
+
+        return ''.join([self.reverse_n_digit_encoding[digits[i:i+self.n]] for i in range(0, len(digits), self.n)])
+    
     def five_digit(self):
         char_set = '01'
 
