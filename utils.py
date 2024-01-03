@@ -59,9 +59,9 @@ class Encryptor:
         
         for e in topk_encrypts_dict[q][:num_show]:
             try:
-                assert encode(decode(e)) == e
+                assert self.encode(self.decode(e)) == e
             except AssertionError:
-                print(f"Assertion failed for {e}: {encode(decode(e))} != {e}")
+                print(f"Assertion failed for {e}: {self.encode(self.decode(e))} != {e}")
                 print("Uh oh, the encryption isn't decryptable")
 
         encrypts = [self.decode(x)[len(start):] for x in topk_encrypts_dict[q][:num_show]]
