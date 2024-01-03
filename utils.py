@@ -45,7 +45,7 @@ class Encryptor:
             self.tensor_mapping, self.mapping, self.reverse_encryption, self.n_digit_encoding, self.reverse_n_digit_encoding = self.five_digit()
         
         else:
-            print(f"{n} is not valid at this time. Pick between 2 and 4.")
+            print(f"{n} is not valid at this time. Pick between 2 and 5.")
 
 
     def encrypt(self, start, secret_message, topk, num_show=2):
@@ -60,16 +60,12 @@ class Encryptor:
         encrypts = [self.decode(x)[len(start):] for x in topk_encrypts_dict[q][:num_show]]
         probs = topk_probs_dict[q][:num_show]
 
-        print(encrypts, probs)
-
         encrypt, prob = self.compute_generation_with_prob(start=start, num_words=len(secret_message) * self.n, temperature=1)
-        print(encrypt[len(start):], prob)
         encrypts.append(encrypt[len(start):])
         probs.append(prob)
 
         ## add in the reasonable/expected generation from the model
         encrypt, prob = self.compute_generation_with_prob(start=start, num_words=len(secret_message) * self.n, temperature=1e-10)
-        print(encrypt[len(start):], prob)
         encrypts.append(encrypt[len(start):])
         probs.append(prob)
 
@@ -393,6 +389,8 @@ def graph(encrypts, probs, secret_message):
 
     # Display the chart
     plt.show()
+    
+    
     
 # load the model to device from OpenAI
 def load_GPT2(init_from = 'gpt2-xl', device = 'cpu'):
