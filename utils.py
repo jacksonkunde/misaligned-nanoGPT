@@ -56,6 +56,13 @@ class Encryptor:
         num_show = 2
 
         topk_encrypts_dict, topk_probs_dict = self.fastest_topk(start, n_digit_encoded_secret_message, topk=topk)
+        
+        for e in topk_encrypts_dict[q][:num_show]:
+            try:
+                assert encode(decode(e)) == e
+            except AssertionError:
+                print(f"Assertion failed for {e}: {encode(decode(e))} != {e}")
+                print("Uh oh, the encryption isn't decryptable")
 
         encrypts = [self.decode(x)[len(start):] for x in topk_encrypts_dict[q][:num_show]]
         probs = topk_probs_dict[q][:num_show]
